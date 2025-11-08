@@ -1,0 +1,627 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>1대1 경쟁 스터디 - 최대 성취도 도전</title>
+    <!-- Tailwind CSS CDN 로드 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- CSS 스타일 시작 -->
+    <style>
+        /* 커스텀 스타일: Inter 폰트 대신 한국어 환경에 적합한 시스템 폰트 사용 */
+        body { 
+            font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif; 
+            background-color: #1a1a2e; 
+            color: #e0e0e0; 
+        }
+        /* 집중도를 높이는 다크 테마 */
+        .container { 
+            max-width: 1000px; 
+        }
+        .card { 
+            background-color: #2c2c4b; 
+            border: 1px solid #4a4a75; 
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4); 
+        }
+        .result-text { 
+            font-size: 1.25rem; 
+            font-weight: bold; 
+            margin-top: 10px; 
+        }
+        .correct { 
+            color: #50fa7b; 
+        }
+        .incorrect { 
+            color: #ff5555; 
+        }
+        .timer-glow { 
+            text-shadow: 0 0 10px #70a1ff; 
+        }
+
+        /* 모바일 최적화: 문제 영역 높이 확보 */
+        @media (max-width: 768px) {
+            #problem-display { 
+                font-size: 2.5rem; 
+            }
+        }
+    </style>
+    <!-- CSS 스타일 끝 -->
+</head>
+<body>
+
+    <div id="app" class="container mx-auto p-4 md:p-8 min-h-screen flex flex-col items-center">
+        
+        <!-- 헤더 및 타이틀 -->
+        <header class="w-full text-center py-4 mb-8">
+            <h1 class="text-4xl font-extrabold text-[#95d5b2] tracking-wider">🔥 1대1 집중 스터디 앱 🔥</h1>
+            <p class="text-gray-400 mt-2">30분 동안 무한 문제 풀이로 최대 성취도에 도전하세요</p>
+            <div id="nickname-area" class="mt-4 flex justify-center items-center">
+                <input type="text" id="nickname-input" placeholder="닉네임 입력 (익명 보장)" 
+                       class="px-4 py-2 rounded-l-lg bg-[#3a3a5f] text-white border border-[#4a4a75] focus:outline-none focus:ring-2 focus:ring-[#95d5b2] w-40 md:w-64" maxlength="10">
+                <button id="start-button" 
+                        class="px-4 py-2 bg-[#70a1ff] text-white font-semibold rounded-r-lg hover:bg-[#5f8de5] transition duration-200 disabled:opacity-50">
+                    시작
+                </button>
+            </div>
+        </header>
+
+        <!-- 메인 게임 UI -->
+        <main id="game-ui" class="w-full hidden">
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                
+                <!-- 1. 타이머 및 현재 상태 -->
+                <div class="md:col-span-1 card rounded-xl p-4 text-center">
+                    <h2 class="text-lg font-bold text-gray-300">남은 시간</h2>
+                    <div id="timer-display" class="text-6xl font-mono mt-2 timer-glow text-[#95d5b2]">30:00</div>
+                    <p id="game-status" class="text-sm mt-2 text-yellow-400">대결 진행 중</p>
+                </div>
+
+                <!-- 2. 점수판 (실시간 순위 시뮬레이션) -->
+                <div class="md:col-span-2 card rounded-xl p-4">
+                    <h2 class="text-lg font-bold text-gray-300 mb-2">실시간 점수 및 순위</h2>
+                    <div id="scoreboard" class="space-y-2">
+                        <!-- Player 1 (나) -->
+                        <div class="flex justify-between items-center p-2 bg-[#3a3a5f] rounded-lg border-l-4 border-[#95d5b2] scale-105 transform transition duration-300">
+                            <span id="player-nickname" class="text-xl font-bold"></span>
+                            <span class="text-2xl font-mono text-[#95d5b2]"><span id="my-score">0</span> 점</span>
+                        </div>
+                        <!-- Player 2 (시뮬레이션 상대) -->
+                        <div class="flex justify-between items-center p-2 bg-[#3a3a5f] rounded-lg opacity-70">
+                            <span class="text-xl font-medium text-gray-400">랜덤 경쟁자 ⚔️</span>
+                            <span class="text-2xl font-mono text-gray-400"><span id="rival-score">0</span> 점</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 3. 문제 풀이 영역 -->
+            <div class="card rounded-xl p-6 md:p-10 mb-6 flex flex-col items-center">
+                <p class="text-md text-gray-400 mb-4">현재 난이도: <span id="difficulty-level" class="font-bold text-yellow-400">기초</span></p>
+                
+                <!-- 문제 디스플레이 -->
+                <div id="problem-display" class="text-5xl md:text-6xl font-extrabold text-white mb-6 text-center">
+                    문제를 기다리는 중...
+                </div>
+                
+                <!-- 답안 입력 및 결과 표시 -->
+                <div class="w-full max-w-sm flex flex-col items-center">
+                    <div class="flex w-full">
+                        <input type="number" id="answer-input" placeholder="여기에 답 입력" 
+                               class="w-full px-4 py-3 text-2xl rounded-l-lg bg-[#1a1a2e] text-white border-2 border-[#4a4a75] focus:outline-none focus:border-[#70a1ff]"
+                               disabled>
+                        <button id="submit-button" 
+                                class="px-6 py-3 bg-[#ff5555] text-white font-bold text-lg rounded-r-lg hover:bg-[#d04444] transition duration-200 disabled:opacity-50"
+                                disabled>
+                            확인
+                        </button>
+                    </div>
+                    <!-- 즉각적인 피드백 메시지 -->
+                    <div id="feedback-message" class="result-text text-center h-8 mt-2"></div>
+                </div>
+            </div>
+            
+            <!-- 4. 통계 및 성취도 -->
+            <div class="card rounded-xl p-6">
+                <h2 class="text-lg font-bold text-gray-300 mb-4">나의 성취도 통계</h2>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                    <div class="p-3 bg-[#3a3a5f] rounded-lg">
+                        <p class="text-sm text-gray-400">총 문제 수</p>
+                        <p id="stats-total" class="text-3xl font-bold text-white">0</p>
+                    </div>
+                    <div class="p-3 bg-[#3a3a5f] rounded-lg">
+                        <p class="text-sm text-gray-400">정확도</p>
+                        <p id="stats-accuracy" class="text-3xl font-bold text-white">0%</p>
+                    </div>
+                    <div class="p-3 bg-[#3a3a5f] rounded-lg">
+                        <p class="text-sm text-gray-400">최대 정답 연속</p>
+                        <p id="stats-streak" class="text-3xl font-bold text-white">0</p>
+                    </div>
+                    <div class="p-3 bg-[#3a3a5f] rounded-lg">
+                        <p class="text-sm text-gray-400">최고 점수 (Local)</p>
+                        <p id="stats-best-score" class="text-3xl font-bold text-yellow-500">0</p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- 결과 모달 (Modal) -->
+        <div id="result-modal" class="fixed inset-0 bg-black bg-opacity-80 z-50 hidden items-center justify-center p-4">
+            <div class="bg-white text-gray-900 rounded-xl p-8 max-w-lg w-full text-center card">
+                <h2 id="modal-title" class="text-4xl font-extrabold text-[#1a1a2e] mb-4">시간 종료! 수고했어요 👏</h2>
+                <p class="text-lg mb-6">최종 성적 및 피드백입니다.</p>
+                
+                <div class="space-y-3 mb-6 p-4 bg-gray-100 rounded-lg">
+                    <p class="text-2xl font-bold">최종 점수: <span id="final-score" class="text-[#70a1ff]">0</span>점</p>
+                    <p class="text-xl">정확도: <span id="final-accuracy" class="text-green-600">0%</span></p>
+                    <p class="text-xl">최대 난이도: <span id="final-difficulty" class="text-yellow-600">기초</span></p>
+                </div>
+                
+                <p id="feedback-summary" class="text-md text-gray-700 mb-8"></p>
+
+                <button id="restart-button" class="px-8 py-3 bg-[#ff5555] text-white font-bold rounded-lg hover:bg-[#d04444] transition duration-200">
+                    다시 도전!
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript 로직 시작 -->
+    <script>
+        // 전역 변수 설정
+        const GAME_DURATION = 30 * 60; // 30분 (초)
+        const LOCAL_STORAGE_KEY = 'competitiveStudyApp';
+        const RIval_SCORE_INCREMENT_INTERVAL = 5000; // 5초마다 라이벌 점수 업데이트
+
+        let gameState = {
+            nickname: '플레이어',
+            score: 0,
+            rivalScore: 0,
+            timeLeft: GAME_DURATION,
+            totalProblems: 0,
+            correctAnswers: 0,
+            currentStreak: 0,
+            maxStreak: 0,
+            difficulty: 1, // 1: 기초, 2: 일반, 3: 심화
+            bestScore: 0,
+            problemHistory: new Set(), // 문제 중복 방지 Set (예: '12+5')
+            isGameRunning: false,
+            timerInterval: null,
+            rivalInterval: null,
+            lastSubmissionTime: 0,
+            maxDifficultyReached: 1,
+        };
+
+        // --- UI 요소 캐시 ---
+        const ui = {
+            nicknameArea: document.getElementById('nickname-area'),
+            startButton: document.getElementById('start-button'),
+            gameUI: document.getElementById('game-ui'),
+            nicknameInput: document.getElementById('nickname-input'),
+            playerNickname: document.getElementById('player-nickname'),
+            timerDisplay: document.getElementById('timer-display'),
+            gameStatus: document.getElementById('game-status'),
+            myScore: document.getElementById('my-score'),
+            rivalScore: document.getElementById('rival-score'),
+            difficultyLevel: document.getElementById('difficulty-level'),
+            problemDisplay: document.getElementById('problem-display'),
+            answerInput: document.getElementById('answer-input'),
+            submitButton: document.getElementById('submit-button'),
+            feedbackMessage: document.getElementById('feedback-message'),
+            statsTotal: document.getElementById('stats-total'),
+            statsAccuracy: document.getElementById('stats-accuracy'),
+            statsStreak: document.getElementById('stats-streak'),
+            statsBestScore: document.getElementById('stats-best-score'),
+            resultModal: document.getElementById('result-modal'),
+            modalTitle: document.getElementById('modal-title'),
+            finalScore: document.getElementById('final-score'),
+            finalAccuracy: document.getElementById('final-accuracy'),
+            finalDifficulty: document.getElementById('final-difficulty'),
+            feedbackSummary: document.getElementById('feedback-summary'),
+            restartButton: document.getElementById('restart-button'),
+        };
+
+        // --- 1. 데이터 및 로컬 저장소 관리 ---
+
+        /** 로컬 저장소에서 상태 로드 */
+        function loadState() {
+            const data = localStorage.getItem(LOCAL_STORAGE_KEY);
+            if (data) {
+                const savedState = JSON.parse(data);
+                gameState.bestScore = savedState.bestScore || 0;
+                ui.statsBestScore.textContent = gameState.bestScore.toLocaleString();
+            }
+        }
+
+        /** 로컬 저장소에 현재 최고 점수 저장 */
+        function saveBestScore() {
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify({
+                bestScore: gameState.bestScore
+            }));
+        }
+
+        // --- 2. 문제 자동 공급 로직 ---
+
+        /** * 난이도에 따른 문제 범위를 정의 
+         * [최소값, 최대값, 점수 배율, 난이도 레이블]
+         */
+        const difficultyConfig = {
+            1: [1, 10, 100, '기초 (단순 덧셈/뺄셈)'], // 100점
+            2: [10, 50, 200, '일반 (두 자리 수 연산)'], // 200점
+            3: [50, 100, 300, '심화 (세 자리 수 연산 / 곱셈 추가)'], // 300점
+            4: [100, 500, 500, '최고 난이도 (대수 / 복합 연산)'], // 500점
+        };
+
+        /** * 문제 중복을 피하며 다음 문제를 생성 
+         * @returns {object} { text: 'A + B', answer: C, difficulty: D }
+         */
+        function generateProblem() {
+            let maxAttempts = 10;
+            let problem = null;
+
+            while (maxAttempts > 0) {
+                maxAttempts--;
+                
+                const config = difficultyConfig[gameState.difficulty];
+                if (!config) break;
+
+                const [min, max, score, label] = config;
+                
+                // 난이도에 따라 연산 종류 결정
+                let operators = ['+', '-'];
+                if (gameState.difficulty >= 3) {
+                    operators.push('*');
+                }
+
+                const op = operators[Math.floor(Math.random() * operators.length)];
+                
+                // 범위 내에서 두 숫자 생성
+                const num1 = Math.floor(Math.random() * (max - min + 1)) + min;
+                const num2 = Math.floor(Math.random() * (max - min + 1)) + min;
+                
+                let answer;
+                let text;
+
+                switch (op) {
+                    case '+':
+                        answer = num1 + num2;
+                        text = `${num1} + ${num2}`;
+                        break;
+                    case '-':
+                        // 음수 방지 (뺄셈의 경우)
+                        if (num1 < num2) {
+                            answer = num2 - num1;
+                            text = `${num2} - ${num1}`;
+                        } else {
+                            answer = num1 - num2;
+                            text = `${num1} - ${num2}`;
+                        }
+                        break;
+                    case '*':
+                        answer = num1 * num2;
+                        text = `${num1} * ${num2}`;
+                        // 곱셈은 난이도를 위해 숫자의 범위를 약간 제한
+                        if (num1 > 50 || num2 > 50) continue; 
+                        break;
+                }
+                
+                const problemKey = `${text}=${answer}`;
+
+                // 문제 중복 검사
+                if (!gameState.problemHistory.has(problemKey)) {
+                    problem = { text, answer, score, problemKey, difficulty: gameState.difficulty };
+                    gameState.problemHistory.add(problemKey);
+                    break;
+                }
+            }
+            
+            // 중복된 문제가 너무 많으면 이전 기록을 지우고 새 문제 생성 유도 (새 문제 우선 제공 로직)
+            if (!problem) {
+                gameState.problemHistory.clear();
+                return generateProblem(); 
+            }
+
+            return problem;
+        }
+
+        let currentProblem = null;
+
+        /** 문제 출제 및 UI 업데이트 */
+        function setNextProblem() {
+            currentProblem = generateProblem();
+            ui.problemDisplay.textContent = currentProblem.text;
+            ui.answerInput.value = ''; // 입력 필드 초기화
+            ui.answerInput.focus(); // 자동 포커스
+            ui.feedbackMessage.textContent = ''; // 피드백 메시지 초기화
+            
+            // 난이도 UI 업데이트
+            ui.difficultyLevel.textContent = difficultyConfig[gameState.difficulty][3];
+            // 최고 난이도 기록
+            if (gameState.difficulty > gameState.maxDifficultyReached) {
+                gameState.maxDifficultyReached = gameState.difficulty;
+            }
+        }
+
+        /** 난이도 자동 조절 로직 */
+        function adjustDifficulty(isCorrect) {
+            const MAX_DIFFICULTY = 4;
+            const difficulty = gameState.difficulty;
+
+            if (isCorrect) {
+                gameState.currentStreak++;
+                if (gameState.currentStreak > gameState.maxStreak) {
+                    gameState.maxStreak = gameState.currentStreak;
+                }
+
+                // 3연속 정답 시 난이도 상승 (최대 난이도 4)
+                if (gameState.currentStreak >= 3 && difficulty < MAX_DIFFICULTY) {
+                    gameState.difficulty++;
+                    gameState.currentStreak = 0; // 난이도 조절 후 스트릭 초기화
+                    showFeedback('난이도 상승! ⬆️', 'text-yellow-400');
+                }
+            } else {
+                gameState.currentStreak = 0; // 오답 시 스트릭 초기화
+                
+                // 2연속 오답 시 난이도 하락 (최소 난이도 1)
+                // (이전 문제도 틀렸다고 가정하고, 2번 틀리면 하락 로직 적용)
+                if (difficulty > 1 && gameState.totalProblems > 0 && 
+                    gameState.correctAnswers < gameState.totalProblems - 1) { 
+                    
+                    gameState.difficulty--;
+                    showFeedback('난이도 하락 ⬇️ 다시 집중!', 'text-red-400');
+                }
+            }
+        }
+
+        // --- 3. 게임 엔진 및 타이머 ---
+
+        /** 타이머 시작 */
+        function startTimer() {
+            gameState.isGameRunning = true;
+            ui.gameStatus.textContent = '대결 진행 중';
+            
+            gameState.timerInterval = setInterval(() => {
+                gameState.timeLeft--;
+                updateTimerDisplay();
+
+                if (gameState.timeLeft <= 0) {
+                    endGame();
+                }
+            }, 1000);
+
+            // 라이벌 점수 시뮬레이션 시작 (실제 서버가 없으므로 임시로 구현)
+            gameState.rivalInterval = setInterval(updateRivalScore, RIval_SCORE_INCREMENT_INTERVAL);
+        }
+
+        /** 타이머 디스플레이 업데이트 */
+        function updateTimerDisplay() {
+            const minutes = Math.floor(gameState.timeLeft / 60);
+            const seconds = gameState.timeLeft % 60;
+            ui.timerDisplay.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+            
+            // 1분 미만 경고 스타일
+            if (gameState.timeLeft < 60) {
+                ui.timerDisplay.classList.add('text-red-500', 'animate-pulse');
+            } else {
+                ui.timerDisplay.classList.remove('text-red-500', 'animate-pulse');
+            }
+        }
+
+        /** 라이벌 점수 시뮬레이션 업데이트 */
+        function updateRivalScore() {
+            // 라이벌은 평균적으로 플레이어보다 약간 높거나 낮은 점수를 획득하도록 시뮬레이션
+            const baseGain = Math.floor(Math.random() * 150) + 50; // 50~200점
+            const difficultyFactor = gameState.difficulty * 0.1;
+            const luckFactor = Math.random() < 0.3 ? 2 : 1; // 가끔 2배 점수
+            
+            // 플레이어 점수를 기반으로 난이도에 따른 점수 증가 시뮬레이션
+            gameState.rivalScore += Math.round(baseGain * luckFactor * (1 + difficultyFactor));
+            ui.rivalScore.textContent = gameState.rivalScore.toLocaleString();
+        }
+
+        /** 게임 종료 및 결과 표시 */
+        function endGame() {
+            clearInterval(gameState.timerInterval);
+            clearInterval(gameState.rivalInterval);
+            gameState.isGameRunning = false;
+            
+            // 입력 비활성화
+            ui.answerInput.disabled = true;
+            ui.submitButton.disabled = true;
+            ui.gameStatus.textContent = '게임 종료';
+            
+            // 최고 점수 업데이트 및 저장
+            if (gameState.score > gameState.bestScore) {
+                gameState.bestScore = gameState.score;
+                saveBestScore();
+            }
+
+            // 모달 업데이트 및 표시
+            showResultModal();
+        }
+
+        // --- 4. 사용자 입력 및 이벤트 핸들러 ---
+
+        /** 정답 확인 로직 */
+        function checkAnswer() {
+            if (!gameState.isGameRunning || !currentProblem) return;
+
+            const inputTime = Date.now();
+            
+            // 🚨 악용 방지 기본 기능: 너무 빠른 연속 답변 제한 (0.5초 이내)
+            if (inputTime - gameState.lastSubmissionTime < 500) {
+                showFeedback('🚨 너무 빠릅니다! 천천히 풀어요.', 'text-red-500');
+                return;
+            }
+            gameState.lastSubmissionTime = inputTime;
+
+            const userAnswer = parseInt(ui.answerInput.value, 10);
+
+            if (isNaN(userAnswer)) {
+                showFeedback('숫자를 입력해 주세요.', 'text-yellow-500');
+                return;
+            }
+
+            gameState.totalProblems++;
+            let isCorrect = (userAnswer === currentProblem.answer);
+
+            if (isCorrect) {
+                gameState.correctAnswers++;
+                gameState.score += currentProblem.score;
+                showFeedback(`정답! (+${currentProblem.score}점)`, 'correct');
+            } else {
+                gameState.score -= Math.floor(currentProblem.score / 5); // 오답 시 페널티
+                if (gameState.score < 0) gameState.score = 0;
+                showFeedback(`오답 ❌ 정답: ${currentProblem.answer}`, 'incorrect');
+            }
+
+            // 점수 및 통계 업데이트
+            updateStats(isCorrect);
+            
+            // 난이도 조절
+            adjustDifficulty(isCorrect);
+
+            // 다음 문제 출제
+            setTimeout(setNextProblem, 500); // 0.5초 후 다음 문제
+        }
+
+        /** 통계 UI 업데이트 */
+        function updateStats(isCorrect) {
+            ui.myScore.textContent = gameState.score.toLocaleString();
+            ui.statsTotal.textContent = gameState.totalProblems;
+            ui.statsBestScore.textContent = gameState.bestScore.toLocaleString();
+            
+            const accuracy = gameState.totalProblems === 0 
+                ? 0 
+                : ((gameState.correctAnswers / gameState.totalProblems) * 100).toFixed(1);
+            
+            ui.statsAccuracy.textContent = `${accuracy}%`;
+            ui.statsStreak.textContent = gameState.currentStreak;
+        }
+
+        /** 즉각적인 피드백 메시지 출력 */
+        function showFeedback(message, className) {
+            ui.feedbackMessage.className = `result-text text-center h-8 mt-2 ${className}`;
+            ui.feedbackMessage.textContent = message;
+        }
+
+        /** 결과 모달 표시 */
+        function showResultModal() {
+            const totalProblems = gameState.totalProblems;
+            const correctRate = ((gameState.correctAnswers / totalProblems) * 100).toFixed(1);
+            const difficultyLabel = difficultyConfig[gameState.maxDifficultyReached] ? difficultyConfig[gameState.maxDifficultyReached][3] : '기초';
+            
+            ui.finalScore.textContent = gameState.score.toLocaleString();
+            ui.finalAccuracy.textContent = `${correctRate}%`;
+            ui.finalDifficulty.textContent = difficultyLabel.split(' ')[0];
+
+            let summary = '';
+            if (correctRate >= 90) {
+                summary = `정확도가 ${correctRate}%로 매우 높습니다! 다음에는 ${difficultyLabel.split(' ')[0]} 난이도를 완벽하게 마스터하는 것을 목표로 해보세요.`;
+            } else if (correctRate >= 70) {
+                summary = `꽤 좋은 성적입니다. 정확도를 90% 이상으로 끌어올리면서 속도를 높이는 연습이 필요합니다.`;
+            } else {
+                summary = `정확도가 낮아요 😥. 잠시 쉬고, 기본 개념을 복습한 뒤 다시 도전해 봅시다!`;
+            }
+
+            ui.feedbackSummary.textContent = summary;
+            ui.resultModal.classList.remove('hidden');
+            ui.resultModal.classList.add('flex');
+        }
+
+        // --- 5. 초기화 및 이벤트 리스너 설정 ---
+
+        /** 게임 초기화 */
+        function resetGame() {
+            // 게임 상태 초기화
+            gameState = {
+                ...gameState, // 최고 점수는 유지
+                score: 0,
+                rivalScore: 0,
+                timeLeft: GAME_DURATION,
+                totalProblems: 0,
+                correctAnswers: 0,
+                currentStreak: 0,
+                difficulty: 1,
+                problemHistory: new Set(),
+                isGameRunning: false,
+                maxDifficultyReached: 1,
+            };
+            
+            // UI 초기화
+            ui.gameUI.classList.add('hidden');
+            ui.nicknameArea.classList.remove('hidden');
+            ui.answerInput.disabled = true;
+            ui.submitButton.disabled = true;
+            ui.answerInput.value = '';
+            ui.timerDisplay.classList.remove('text-red-500', 'animate-pulse');
+            
+            // 모든 통계 업데이트 (0으로)
+            updateStats(false);
+            ui.rivalScore.textContent = '0';
+            ui.problemDisplay.textContent = '문제를 기다리는 중...';
+            ui.feedbackMessage.textContent = '';
+            ui.gameStatus.textContent = '대결 시작 전';
+            updateTimerDisplay(); // 타이머 30:00으로 초기화
+            
+            // 모달 닫기
+            ui.resultModal.classList.add('hidden');
+            ui.resultModal.classList.remove('flex');
+            
+            ui.nicknameInput.focus();
+        }
+
+        /** '시작' 버튼 클릭 핸들러 */
+        ui.startButton.addEventListener('click', () => {
+            let nickname = ui.nicknameInput.value.trim();
+            if (nickname.length === 0) {
+                nickname = '익명 도전자';
+            }
+            
+            // 닉네임 설정 및 UI 전환
+            gameState.nickname = nickname;
+            ui.playerNickname.textContent = `${nickname} (나)`;
+            ui.nicknameArea.classList.add('hidden');
+            ui.gameUI.classList.remove('hidden');
+            
+            // 게임 시작 준비
+            ui.answerInput.disabled = false;
+            ui.submitButton.disabled = false;
+            
+            setNextProblem(); // 첫 문제 출제
+            startTimer(); // 타이머 시작
+        });
+
+        /** '확인' 버튼 또는 Enter 키 입력 처리 */
+        ui.submitButton.addEventListener('click', checkAnswer);
+        ui.answerInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault(); // 기본 Enter 동작(폼 제출 등) 방지
+                checkAnswer();
+            }
+        });
+
+        /** '다시 도전' 버튼 클릭 핸들러 */
+        ui.restartButton.addEventListener('click', () => {
+            resetGame();
+        });
+
+        // --- 앱 초기화 실행 ---
+        window.onload = () => {
+            loadState();
+            updateTimerDisplay();
+            resetGame();
+            
+            // 닉네임 입력 후 Enter 키로 바로 시작 가능
+            ui.nicknameInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    ui.startButton.click();
+                }
+            });
+        };
+    </script>
+    <!-- JavaScript 로직 끝 -->
+</body>
+</html>
